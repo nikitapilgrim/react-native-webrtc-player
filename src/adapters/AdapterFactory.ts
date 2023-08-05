@@ -1,6 +1,7 @@
+import { RTCPeerConnection } from 'react-native-webrtc';
 import { Adapter } from './Adapter';
-import { WHPPAdapter } from './WHPPAdapter';
-import { EyevinnAdapter } from './EyevinnAdapter';
+//import { WHPPAdapter } from './WHPPAdapter';
+//import { EyevinnAdapter } from './EyevinnAdapter';
 import { WHEPAdapter } from './WHEPAdapter';
 
 export interface AdapterFactoryFunction {
@@ -15,6 +16,7 @@ interface AdapterMap {
   [type: string]: AdapterFactoryFunction;
 }
 
+/*
 const WHPPAdapterFactory: AdapterFactoryFunction = (
   peer,
   channelUrl,
@@ -30,6 +32,7 @@ const EyevinnAdapterFactory: AdapterFactoryFunction = (
 ) => {
   return new EyevinnAdapter(peer, channelUrl, onError);
 };
+*/
 
 const WHEPAdapterFactory: AdapterFactoryFunction = (
   peer,
@@ -40,8 +43,8 @@ const WHEPAdapterFactory: AdapterFactoryFunction = (
 };
 
 const adapters: AdapterMap = {
-  'se.eyevinn.whpp': WHPPAdapterFactory,
-  'se.eyevinn.webrtc': EyevinnAdapterFactory,
+  //'se.eyevinn.whpp': WHPPAdapterFactory,
+  //'se.eyevinn.webrtc': EyevinnAdapterFactory,
   whep: WHEPAdapterFactory
 };
 

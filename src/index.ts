@@ -1,10 +1,11 @@
+import { MediaStream, RTCPeerConnection } from 'react-native-webrtc';
 import { Adapter } from './adapters/Adapter';
 import {
   AdapterFactory,
   AdapterFactoryFunction
 } from './adapters/AdapterFactory';
 import { EventEmitter } from 'events';
-import { CSAIManager } from '@eyevinn/csai-manager';
+//import { CSAIManager } from '@eyevinn/csai-manager';
 
 export { ListAvailableAdapters } from './adapters/AdapterFactory';
 
@@ -16,7 +17,8 @@ enum Message {
 }
 
 interface WebRTCPlayerOptions {
-  video: HTMLVideoElement;
+  //video: HTMLVideoElement;
+  onUpdateStream: any;
   type: string;
   adapterFactory?: AdapterFactoryFunction;
   iceServers?: RTCIceServer[];
@@ -27,10 +29,10 @@ interface WebRTCPlayerOptions {
   timeoutThreshold?: number;
 }
 
-const RECONNECT_ATTEMPTS = 2;
+const RECONNECT_ATTEMPTS = 9999;
 
 export class WebRTCPlayer extends EventEmitter {
-  private videoElement: HTMLVideoElement;
+  //private videoElement: HTMLVideoElement;
   private peer: RTCPeerConnection = <RTCPeerConnection>{};
   private adapterType: string;
   private adapterFactory: AdapterFactoryFunction | undefined = undefined;
@@ -38,7 +40,7 @@ export class WebRTCPlayer extends EventEmitter {
   private debug: boolean;
   private channelUrl: URL = <URL>{};
   private reconnectAttemptsLeft: number = RECONNECT_ATTEMPTS;
-  private csaiManager?: CSAIManager;
+  //private csaiManager?: CSAIManager;
   private adapter: Adapter = <Adapter>{};
   private statsInterval: ReturnType<typeof setInterval> | undefined;
   private statsTypeFilter: string | undefined = undefined;
@@ -47,22 +49,25 @@ export class WebRTCPlayer extends EventEmitter {
   private mediaTimeoutThreshold = 30000;
   private timeoutThresholdCounter = 0;
   private bytesReceived = 0;
+  private stream: MediaStream;
 
   constructor(opts: WebRTCPlayerOptions) {
     super();
-    this.videoElement = opts.video;
+    //this.videoElement = opts.video;
+    this.stream = new MediaStream();
+    this.onUpdateStream = opts.onUpdateStream;
     this.adapterType = opts.type;
     this.adapterFactory = opts.adapterFactory;
     this.statsTypeFilter = opts.statsTypeFilter;
     this.mediaTimeoutThreshold =
       opts.timeoutThreshold ?? this.mediaTimeoutThreshold;
 
-    this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    this.iceServers = [{ urls: 'stun:stun.cloudflare.com:3478' }];
     if (opts.iceServers) {
       this.iceServers = opts.iceServers;
     }
     this.debug = !!opts.debug;
-    if (opts.vmapUrl) {
+    /* if (opts.vmapUrl) {
       this.csaiManager = new CSAIManager({
         contentVideoElement: this.videoElement,
         vmapUrl: opts.vmapUrl,
@@ -74,7 +79,7 @@ export class WebRTCPlayer extends EventEmitter {
           this.csaiManager.destroy();
         }
       });
-    }
+    }*/
   }
 
   async load(channelUrl: URL) {
@@ -111,6 +116,7 @@ export class WebRTCPlayer extends EventEmitter {
       this.reconnectAttemptsLeft--;
     } else if (this.peer.connectionState === 'connected') {
       this.log('Connected');
+      this.onUpdateStream(this.stream);
       this.reconnectAttemptsLeft = RECONNECT_ATTEMPTS;
     }
   }
@@ -120,14 +126,18 @@ export class WebRTCPlayer extends EventEmitter {
     switch (error) {
       case 'reconnectneeded':
         this.peer && this.peer.close();
-        this.videoElement.srcObject = null;
+        this.stream = new MediaStream();
+        this.onUpdateStream(this.stream);
+        //this.videoElement.srcObject = null;
         this.setupPeer();
         this.adapter.resetPeer(this.peer);
         this.adapter.connect();
         break;
       case 'connectionfailed':
         this.peer && this.peer.close();
-        this.videoElement.srcObject = null;
+        this.stream = new MediaStream();
+        this.onUpdateStream(this.stream);
+        //this.videoElement.srcObject = null;
         this.emit(Message.INITIAL_CONNECTION_FAILED);
         break;
     }
@@ -173,14 +183,44 @@ export class WebRTCPlayer extends EventEmitter {
   }
 
   private setupPeer() {
-    this.peer = new RTCPeerConnection({ iceServers: this.iceServers });
+    this.peer = new RTCPeerConnection({
+      iceServers: this.iceServers,
+      bundlePolicy: 'max-bundle'
+    });
     this.peer.onconnectionstatechange = this.onConnectionStateChange.bind(this);
     this.peer.ontrack = this.onTrack.bind(this);
   }
 
   private onTrack(event: RTCTrackEvent) {
-    for (const stream of event.streams) {
-      if (stream.id === 'feedbackvideomslabel' || this.videoElement.srcObject) {
+    const track = event.track;
+    const currentTracks = this.stream.getTracks();
+    const streamAlreadyHasVideoTrack = currentTracks.some(
+      (track) => track.kind === 'video'
+    );
+    const streamAlreadyHasAudioTrack = currentTracks.some(
+      (track) => track.kind === 'audio'
+    );
+    switch (track.kind) {
+      case 'video':
+        if (streamAlreadyHasVideoTrack) {
+          break;
+        }
+        this.stream.addTrack(track);
+        break;
+      case 'audio':
+        if (streamAlreadyHasAudioTrack) {
+          break;
+        }
+        this.stream.addTrack(track);
+        break;
+      default:
+        console.log('got unknown track ' + track);
+    }
+    this.onUpdateStream(this.stream);
+    /*for (const stream of event.streams) {
+      if (
+        stream.id === 'feedbackvideomslabel' /!*|| this.videoElement.srcObject*!/
+      ) {
         continue;
       }
 
@@ -191,8 +231,9 @@ export class WebRTCPlayer extends EventEmitter {
           ' video ' +
           stream.getVideoTracks().length
       );
-      this.videoElement.srcObject = stream;
-    }
+      this.onUpdateStream(stream);
+      //this.videoElement.srcObject = stream;
+    }*/
   }
 
   private async connect() {
@@ -233,18 +274,20 @@ export class WebRTCPlayer extends EventEmitter {
   }
 
   mute() {
-    this.videoElement.muted = true;
+    //this.videoElement.muted = true;
   }
 
   unmute() {
-    this.videoElement.muted = false;
+    //this.videoElement.muted = false;
   }
 
   stop() {
     clearInterval(this.statsInterval);
     this.peer.close();
-    this.videoElement.srcObject = null;
-    this.videoElement.load();
+    this.stream = new MediaStream();
+    this.onUpdateStream(this.stream);
+    /*this.videoElement.srcObject = null;
+    this.videoElement.load();*/
   }
 
   destroy() {

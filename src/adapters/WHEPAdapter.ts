@@ -1,4 +1,5 @@
 import { Adapter, AdapterConnectOptions } from './Adapter';
+import { RTCIceCandidate, RTCPeerConnection } from 'react-native-webrtc';
 
 const DEFAULT_CONNECT_TIMEOUT = 2000;
 
@@ -161,6 +162,7 @@ export class WHEPAdapter implements Adapter {
       this.log(`Requesting offer from: ${this.channelUrl}`);
       const response = await fetch(this.channelUrl.toString(), {
         method: 'POST',
+        mode: 'cors',
         headers: {
           'Content-Type': 'application/sdp'
         },
@@ -190,6 +192,7 @@ export class WHEPAdapter implements Adapter {
       if (answer) {
         const response = await fetch(this.resource, {
           method: 'PATCH',
+          mode: 'cors',
           headers: {
             'Content-Type': 'application/sdp'
           },
@@ -214,6 +217,7 @@ export class WHEPAdapter implements Adapter {
       this.log(`Sending offer to ${this.channelUrl}`);
       const response = await fetch(this.channelUrl.toString(), {
         method: 'POST',
+        mode: 'cors',
         headers: {
           'Content-Type': 'application/sdp'
         },
